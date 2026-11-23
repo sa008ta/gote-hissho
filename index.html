@@ -461,16 +461,16 @@ function playerId() {
 function formPost(url, ent, data) {
   const body = new URLSearchParams();
   for (const k in data) body.append(ent[k], data[k]);
-  return fetch(url, { method: 'POST', mode: 'no-cors', body }).catch(() => {});
+  return fetch(url, { method: 'POST', mode: 'no-cors', body, keepalive: true }).catch(() => {});
 }
 function sheetLoad(id) {
   return fetch('https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json&r=' + Date.now())
     .then(r => r.text())
     .then(t => { const j = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1)); return (j.table.rows || []).map(r => (r.c || []).map(c => c ? (c.f != null ? c.f : c.v) : null)); });
 }
-function submitScore() {
+function submitScore(force) {
   const sub = +(store.get('counter_sub', '0') || 0);
-  if (G.best > sub && G.best > 0) {
+  if (G.best > 0 && (force || G.best > sub)) {
     formPost(RANK_POST, RANK_ENT, { name: myName(), score: G.best, pid: playerId(), date: new Date().toISOString().slice(0, 10) });
     store.set('counter_sub', String(G.best));
   }
@@ -486,6 +486,8 @@ function loadRanking() {
     }
     const list = Object.values(best).sort((a, b) => b.sc - a.sc).slice(0, 20);
     const myPid = playerId();
+    // 送信が届いていなかったら再送する（送信済み記録は端末側だけに残り、失敗すると二度と送られない事故の対策）
+    if (G.best > 0 && (!best[myPid] || best[myPid].sc < G.best)) submitScore(true);
     $('rankList').innerHTML = list.length
       ? list.map((e, i) => '<div class="rankRow"><span class="rk">' + (i + 1) + '位</span><span class="rn">' + e.name + '</span><span class="rs">' + e.sc + '人斬り</span></div>').join('')
       : 'まだ記録がありません';
